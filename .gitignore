@@ -1,0 +1,17 @@
+# Ignore compiled executables
+*.exe
+
+# Ignore dynamic link libraries
+*.dll
+
+# Ignore object files (if your Makefile generates them)
+*.o
+
+# Ignore dependency tracking files
+*.d
+
+# Ignore resources
+resources/
+
+# Ignore .vscode
+.vscode/
