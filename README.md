@@ -20,6 +20,28 @@ Through architecting this engine, I specifically targeted and enhanced my skills
 - **Atmospheric Physics:** Simulated aerodynamic drag, True Dynamic Pressure (Max-Q), and stochastic crosswinds utilizing procedural noise.
 - **AI Mission Director:** Utilizes asynchronous HTTP networking to interface with a Large Language Model for real-time telemetry analysis and mission diagnostics.
 
+## Installation & Setup
+
+AeroSim 3D is distributed as a standalone, portable binary, but relies on external assets and dynamic libraries to run.
+
+1. Clone or download this repository to your local machine to get the main `AeroSim3D` project folder.
+2. Navigate to the **[Releases](../../releases)** page and download the latest `.zip` bundle.
+3. Extract the `.zip` file anywhere on your computer.
+4. Open the extracted folder and **copy all of its contents** (`AeroSim3D.exe`, the associated `.dll` files, and the `resources/` directory).
+5. Paste these copied files directly into your main `AeroSim3D` project directory (they should sit right next to your `src/`, `include/`, and `makefile`).
+6. Execute `AeroSim3D.exe` to initialize the simulation.
+
+## Flight Controls
+* **W / S:** Pitch control
+* **A / D:** Yaw control
+* **Q / E:** Roll control
+* **Spacebar:** Max Thrust (100% Ignition)
+* **Left Shift:** Main Engine Ignition / Throttle Up
+* **Left Control:** Engine Cutoff / Throttle Down
+* **H:** Engage Auto-Land (Hoverslam)
+* **I / J / K / L:** Camera controls
+* **TAB:** Lock / Unlock mouse cursor
+
 ## AI Analysis Requirements
 
 To utilize the integrated AI Mission Director and telemetry analysis features, the host system must meet the following requirements:
@@ -50,13 +72,6 @@ AeroSim 3D is under active, iterative development. While the core RK4 physics en
     1.  **Trajectory Prediction Overhead:** The simulation recalculates a 50-step RK4 future trajectory every single frame. 
     2.  **GPU Overdraw:** The exhaust particle system generates thousands of overlapping alpha-blended textures near the ground.
     **Roadmap:** Move the trajectory predictor to an asynchronous background thread (`std::async` or `std::thread`), and implement hardware instancing or alpha-culling for the exhaust particle system.
-
-## Portability & Distribution
-
-AeroSim 3D is distributed as a standalone, portable binary. All necessary runtime dependencies, including standard C++ libraries and external middleware (DLLs), are packaged within the primary distribution directory. 
-
-1. Ensure `AeroSim3D.exe`, the associated `.dll` files, and the `resources/` directory are co-located.
-2. Execute `AeroSim3D.exe` to initialize the simulation.
 
 ## Acknowledgements & Licenses
 
