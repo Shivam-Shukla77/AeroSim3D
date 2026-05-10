@@ -1,9 +1,10 @@
 #include "ui.h"
 #include <cmath>
 #include <rlgl.h>
+#include <deque>
 
-extern std::vector<float> altitudeHistory;
-extern std::vector<float> velocityHistory;
+extern std::deque<float> altitudeHistory;
+extern std::deque<float> velocityHistory;
 
 bool DrawCommandButton(Rectangle bounds, const char* text) {
     Vector2 mousePoint = GetMousePosition();
@@ -21,7 +22,7 @@ bool DrawCommandButton(Rectangle bounds, const char* text) {
     return isHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
 }
 
-void DrawTelemetryGraph(Rectangle bounds, const char* title, const std::vector<float>& data, float maxVal, Color lineColor) {
+void DrawTelemetryGraph(Rectangle bounds, const char* title, const std::deque<float>& data, float maxVal, Color lineColor) {
     Color panelBg = Fade(BLACK, 0.7f);
     Color panelBorder = Fade(SKYBLUE, 0.5f);
     Color textAccent = LIME;
@@ -48,7 +49,7 @@ void DrawTelemetryGraph(Rectangle bounds, const char* title, const std::vector<f
     }
 }
 
-void DrawScrollingGraph(Rectangle bounds, const std::vector<float>& data, Color lineColor, const char* label) {
+void DrawScrollingGraph(Rectangle bounds, const std::deque<float>& data, Color lineColor, const char* label) {
     Color panelBg = Fade(BLACK, 0.7f);
     Color panelBorder = Fade(SKYBLUE, 0.5f);
     

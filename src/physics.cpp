@@ -1,5 +1,6 @@
 #include "physics.h"
 #include <cmath> // For std::sqrt, std::exp
+#include <algorithm> // For std::max
 #define FNL_IMPL
 #include "FastNoiseLite.h"
 
@@ -55,10 +56,11 @@ Derivative Evaluate(const Rocket& baseParams, const State& initial, float t, flo
     double rz = (double)state.pos.z;
     double r_mag = std::sqrt(rx * rx + ry * ry + rz * rz);
     
-    double gravityMag = (G * global_M_earth * state.mass) / (r_mag * r_mag);
-    netForce.x += (float)(-rx / r_mag * gravityMag);
-    netForce.y += (float)(-ry / r_mag * gravityMag);
-    netForce.z += (float)(-rz / r_mag * gravityMag);
+    double clamped_r = std::max(r_mag, 1.0);
+    double gravityMag = (G * global_M_earth * state.mass) / (clamped_r * clamped_r);
+    netForce.x += (float)(-rx / clamped_r * gravityMag);
+    netForce.y += (float)(-ry / clamped_r * gravityMag);
+    netForce.z += (float)(-rz / clamped_r * gravityMag);
 
     // Procedural Wind & Atmosphere
     static fnl_state noise = fnlCreateState();
@@ -136,17 +138,17 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
     float fillRatio = rocket.maxFuelMass > 0.0f ? rocket.fuelMass / rocket.maxFuelMass : 0.0f;
     float fuelHeight = (rocket.height * 0.6f) * fillRatio;
     
-    float comDryY = 0.0f;
+    float comDryY = rocket.voxelGrid.centerOfMass.y;
     float comFuelY = (-rocket.height * 0.5f) + (fuelHeight * 0.5f);
     
     float totalMass = rocket.dryMass + rocket.fuelMass;
     if (totalMass > 0.0f) {
         rocket.centerOfMassY = ((rocket.dryMass * comDryY) + (rocket.fuelMass * comFuelY)) / totalMass;
     } else {
-        rocket.centerOfMassY = 0.0f;
+        rocket.centerOfMassY = comDryY;
     }
     
-    float iDryCm = (1.0f / 12.0f) * rocket.dryMass * (rocket.height * rocket.height);
+    float iDryCm = rocket.voxelGrid.inertiaTensor[0][0]; // Using pitch/yaw axis inertia from voxelization
     float distDry = rocket.centerOfMassY - comDryY;
     float iDry = iDryCm + (rocket.dryMass * distDry * distDry);
     
@@ -446,7 +448,8 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
         float distanceTraveled = Vector3Length(moveVec);
         
         float spawnStep = rocket.modelRadius * 0.2f; // Overlap tightly
-        int particlesToSpawn = (int)(distanceTraveled / spawnStep);
+        float safeSpawnStep = std::max(spawnStep, 0.01f);
+        int particlesToSpawn = static_cast<int>(distanceTraveled / safeSpawnStep);
         if (particlesToSpawn < 1) particlesToSpawn = 1; // Ensure minimum 1
 
         int totalToSpawn = particlesToSpawn;
@@ -602,11 +605,11 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
     // Telemetry History
     rocket.altitudeHistory.push_back(rocket.position.y);
     rocket.velocityHistory.push_back(Vector3Length(rocket.velocity));
-    if (rocket.altitudeHistory.size() > 300) rocket.altitudeHistory.erase(rocket.altitudeHistory.begin());
-    if (rocket.velocityHistory.size() > 300) rocket.velocityHistory.erase(rocket.velocityHistory.begin());
+    if (rocket.altitudeHistory.size() > 300) rocket.altitudeHistory.pop_front();
+    if (rocket.velocityHistory.size() > 300) rocket.velocityHistory.pop_front();
 }
 
-std::vector<Vector3> CalculateTrajectory(Rocket state, float timeAhead, int steps) {
+std::vector<Vector3> CalculateTrajectory(const Rocket& state, float timeAhead, int steps) {
     std::vector<Vector3> points;
     if (steps <= 0) return points;
     
@@ -616,20 +619,24 @@ std::vector<Vector3> CalculateTrajectory(Rocket state, float timeAhead, int step
     double R_earth = 6371000.0;
     double earth_y = -R_earth;
 
+    Vector3 pos = state.position;
+    Vector3 vel = state.velocity;
+
     for (int i = 0; i < steps; i++) {
-        double rx = (double)state.position.x;
-        double ry = (double)state.position.y - earth_y;
-        double rz = (double)state.position.z;
+        double rx = (double)pos.x;
+        double ry = (double)pos.y - earth_y;
+        double rz = (double)pos.z;
         double r_mag = std::sqrt(rx * rx + ry * ry + rz * rz);
         
-        double gravityMag = (G * global_M_earth) / (r_mag * r_mag);
+        double clamped_r = std::max(r_mag, 1.0);
+        double gravityMag = (G * global_M_earth) / (clamped_r * clamped_r);
         
-        state.velocity.x += (float)(-rx / r_mag * gravityMag) * dt;
-        state.velocity.y += (float)(-ry / r_mag * gravityMag) * dt;
-        state.velocity.z += (float)(-rz / r_mag * gravityMag) * dt;
+        vel.x += (float)(-rx / clamped_r * gravityMag) * dt;
+        vel.y += (float)(-ry / clamped_r * gravityMag) * dt;
+        vel.z += (float)(-rz / clamped_r * gravityMag) * dt;
 
-        state.position = Vector3Add(state.position, Vector3Scale(state.velocity, dt));
-        points.push_back(state.position);
+        pos = Vector3Add(pos, Vector3Scale(vel, dt));
+        points.push_back(pos);
         
         if (r_mag <= R_earth) break; // Stop predicting if it hits the ground
     }

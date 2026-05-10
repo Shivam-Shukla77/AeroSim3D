@@ -4,14 +4,16 @@
 #include <raymath.h>
 #include <rlgl.h>
 #include <vector>
+#include <deque>
 #include "physics.h"
+#include "voxel_types.h"
 #include "ui.h"
 #include "ai_director.h"
 
 Font fdoFont;
 
-std::vector<float> altitudeHistory;
-std::vector<float> velocityHistory;
+std::deque<float> altitudeHistory;
+std::deque<float> velocityHistory;
 float graphSampleTimer = 0.0f;
 const int MAX_GRAPH_POINTS = 100;
 
@@ -26,7 +28,19 @@ int main() {
     SetTargetFPS(60);
 
     RenderTexture2D minimapTarget = LoadRenderTexture(512, 512);
+    if (minimapTarget.id == 0) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load resource [minimapTarget]");
+        CloseWindow();
+        return -1;
+    }
+
     RenderTexture2D viewCubeTarget = LoadRenderTexture(256, 256);
+    if (viewCubeTarget.id == 0) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load resource [viewCubeTarget]");
+        UnloadRenderTexture(minimapTarget);
+        CloseWindow();
+        return -1;
+    }
 
     // Set a massive far clipping plane
     rlSetClipPlanes(0.1, 100000.0);
@@ -34,6 +48,14 @@ int main() {
     // Initialize Audio Device and Load Engine Sound
     InitAudioDevice();
     Music engineSound = LoadMusicStream("resources/freesound_community-065110_seamless-rocket-booster-roar-amp-crackle-42487.mp3");
+    if (engineSound.stream.buffer == nullptr) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load resource [resources/freesound_community-065110_seamless-rocket-booster-roar-amp-crackle-42487.mp3]");
+        CloseAudioDevice();
+        UnloadRenderTexture(viewCubeTarget);
+        UnloadRenderTexture(minimapTarget);
+        CloseWindow();
+        return -1;
+    }
     engineSound.looping = true;
     PlayMusicStream(engineSound);
 
@@ -47,6 +69,19 @@ int main() {
     myRocket.fuelMass = 100000.0f;
     myRocket.maxFuelMass = 100000.0f;
     myRocket.height = 20.0f;
+
+    // Load dynamic voxel data for physics
+    if (!GetOrInitializeVoxelGrid("resources/rocket_engine.glb", myRocket.voxelGrid, 10, myRocket.dryMass)) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load or precompute voxel data [resources/rocket_engine.glb]");
+        UnloadMusicStream(engineSound);
+        CloseAudioDevice();
+        UnloadRenderTexture(viewCubeTarget);
+        UnloadRenderTexture(minimapTarget);
+        CloseWindow();
+        return -1;
+    }
+    myRocket.dryMass = myRocket.voxelGrid.totalDryMass;
+
     myRocket.momentOfInertia = (1.0f / 12.0f) * myRocket.dryMass * (myRocket.height * myRocket.height);
     myRocket.specificImpulse = 320.0f; // e.g., 320 seconds of specific impulse
     myRocket.massFlowRate = 450.0f;    // 450 kg/s of fuel consumption
@@ -102,17 +137,54 @@ int main() {
 
     // Resource Loading
     Model rocketModel = LoadModel("resources/rocket_engine.glb");
+    if (rocketModel.meshCount == 0 || rocketModel.meshes == nullptr) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load resource [resources/rocket_engine.glb]");
+        UnloadMusicStream(engineSound);
+        CloseAudioDevice();
+        UnloadRenderTexture(viewCubeTarget);
+        UnloadRenderTexture(minimapTarget);
+        CloseWindow();
+        return -1;
+    }
     
     Model launchPad = LoadModel("resources/apollo_1_launch_site_memorial.glb");
+    if (launchPad.meshCount == 0 || launchPad.meshes == nullptr) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load resource [resources/apollo_1_launch_site_memorial.glb]");
+        UnloadModel(rocketModel);
+        UnloadMusicStream(engineSound);
+        CloseAudioDevice();
+        UnloadRenderTexture(viewCubeTarget);
+        UnloadRenderTexture(minimapTarget);
+        CloseWindow();
+        return -1;
+    }
     Vector3 padPosition = { 0.0f, 0.0f, 0.0f };
     float padScale = 1.0f;
 
     Model terrainMap = LoadModel("resources/las_negras_terrain_model_almeria_spain (1).glb");
+    if (terrainMap.meshCount == 0 || terrainMap.meshes == nullptr) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load resource [resources/las_negras_terrain_model_almeria_spain (1).glb]");
+        UnloadModel(launchPad);
+        UnloadModel(rocketModel);
+        UnloadMusicStream(engineSound);
+        CloseAudioDevice();
+        UnloadRenderTexture(viewCubeTarget);
+        UnloadRenderTexture(minimapTarget);
+        CloseWindow();
+        return -1;
+    }
     Vector3 terrainPosition = { 300.0f, -30.0f, 0.0f };
     float terrainScale = 1.0f;
 
     // Load Global UI Font
     fdoFont = LoadFontEx("resources/Nasalization Rg.otf", 96, 0, 0);
+    if (fdoFont.texture.id == 0) {
+        TraceLog(LOG_ERROR, "CRITICAL: Failed to load resource [resources/Nasalization Rg.otf]");
+        UnloadModel(terrainMap); UnloadModel(launchPad); UnloadModel(rocketModel);
+        UnloadMusicStream(engineSound); CloseAudioDevice();
+        UnloadRenderTexture(viewCubeTarget); UnloadRenderTexture(minimapTarget);
+        CloseWindow(); return -1;
+    }
     SetTextureFilter(fdoFont.texture, TEXTURE_FILTER_BILINEAR);
 
     // Dynamic Initialization based on Model bounds
@@ -264,8 +336,8 @@ int main() {
             altitudeHistory.push_back(myRocket.position.y);
             velocityHistory.push_back(Vector3Length(myRocket.velocity));
             // Keep the buffer from growing infinitely
-            if (altitudeHistory.size() > MAX_GRAPH_POINTS) altitudeHistory.erase(altitudeHistory.begin());
-            if (velocityHistory.size() > MAX_GRAPH_POINTS) velocityHistory.erase(velocityHistory.begin());
+            if (altitudeHistory.size() > MAX_GRAPH_POINTS) altitudeHistory.pop_front();
+            if (velocityHistory.size() > MAX_GRAPH_POINTS) velocityHistory.pop_front();
         }
 
         std::vector<Vector3> flightPath = CalculateTrajectory(myRocket, 5.0f, 50);

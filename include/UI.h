@@ -3,6 +3,7 @@
 #include <raylib.h>
 #include <string>
 #include <vector>
+#include <deque>
 #include "physics.h"
 
 extern Font fdoFont;
@@ -20,8 +21,8 @@ void DrawDashboard(Rocket& rocket, const std::string& aiAnalysisText, Camera3D c
 
 // Reusable UI components
 bool DrawCommandButton(Rectangle bounds, const char* text);
-void DrawTelemetryGraph(Rectangle bounds, const char* title, const std::vector<float>& data, float maxVal, Color lineColor);
-void DrawScrollingGraph(Rectangle bounds, const std::vector<float>& data, Color lineColor, const char* label);
+void DrawTelemetryGraph(Rectangle bounds, const char* title, const std::deque<float>& data, float maxVal, Color lineColor);
+void DrawScrollingGraph(Rectangle bounds, const std::deque<float>& data, Color lineColor, const char* label);
 void DrawValueTweaker(Rectangle bounds, const char* label, float& value, float step, float minVal, float maxVal, const char* format);
 void DrawHUDAttitudeIndicator(Rectangle bounds, float pitch, float roll, float yaw);
 void DrawDebugAxes(Vector3 origin, Quaternion rotation, float length, float thickness);

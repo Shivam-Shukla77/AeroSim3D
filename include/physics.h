@@ -3,6 +3,8 @@
 #include <raylib.h>
 #include <raymath.h> // Required for Quaternion and Vector3 operations
 #include <vector>
+#include <deque>
+#include "voxel_types.h"
 
 extern double global_M_earth;
 
@@ -88,12 +90,13 @@ struct Rocket {
     static const int MAX_SMOKE_PARTICLES = 2048;
     SmokeParticle smokePlume[MAX_SMOKE_PARTICLES];
     int activeSmokeCount;
-    std::vector<float> altitudeHistory;
-    std::vector<float> velocityHistory;
+    std::deque<float> altitudeHistory;
+    std::deque<float> velocityHistory;
     Vector3 acceleration;
     float twr;
     float mach;
     float dynamicPressure;
+    VoxelGrid voxelGrid;
 };
 
 // Updates the rocket's physics state based on forces and user input
@@ -102,4 +105,4 @@ struct Rocket {
 void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime);
 
 // Calculates the future trajectory path based on current velocity and spherical gravity
-std::vector<Vector3> CalculateTrajectory(Rocket state, float timeAhead, int steps);
+std::vector<Vector3> CalculateTrajectory(const Rocket& state, float timeAhead, int steps);
