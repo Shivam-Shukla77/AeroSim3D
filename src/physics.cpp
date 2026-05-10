@@ -31,6 +31,29 @@ void PIDController::Reset() {
     prevError = 0.0f;
 }
 
+void RecalculateRocketScale(Rocket& rocket, float newScale) {
+    newScale = std::clamp(newScale, 0.1f, 10.0f);
+    
+    if (rocket.currentScale <= 0.0f) rocket.currentScale = 1.0f;
+    
+    float scaleFactor = newScale / rocket.currentScale;
+    rocket.currentScale = newScale;
+    
+    rocket.modelRadius = rocket.baseBaseRadius * newScale;
+    rocket.height = rocket.baseHeight * newScale;
+    rocket.modelBottomOffset = rocket.baseModelBottomOffset * newScale;
+    rocket.crossSectionalArea = rocket.baseCrossSectionalArea * (newScale * newScale);
+    rocket.dryMass = rocket.baseDryMass * (newScale * newScale * newScale);
+    rocket.rcsPower = rocket.baseRcsPower * (newScale * newScale);
+    rocket.massFlowRate = rocket.baseMassFlowRate * (newScale * newScale);
+
+    float fuelPercentage = rocket.maxFuelMass > 0.0f ? rocket.fuelMass / rocket.maxFuelMass : 0.0f;
+    rocket.maxFuelMass = rocket.baseMaxFuelMass * (newScale * newScale * newScale);
+    rocket.fuelMass = rocket.maxFuelMass * fuelPercentage;
+    
+    ScaleVoxelGrid(rocket.voxelGrid, scaleFactor);
+}
+
 // Evaluates the forces and returns the derivative for the RK4 step
 Derivative Evaluate(const Rocket& baseParams, const State& initial, float t, float dt, const Derivative& d) {
     State state;
@@ -469,13 +492,14 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
                 rocket.plume[i].temperature = rocket.combustionTemp;
 
                 Vector3 exhaustDir = Vector3RotateByQuaternion({0.0f, -1.0f, 0.0f}, rocket.orientation);
-                float spread = rocket.modelRadius * 6.0f * rocket.throttle;
+                float spread = rocket.modelRadius * 6.0f * rocket.throttle * rocket.currentScale;
                 Vector3 randomSpread = { (GetRandomValue(-100, 100) / 100.0f) * spread, 0.0f, (GetRandomValue(-100, 100) / 100.0f) * spread };
                 randomSpread = Vector3RotateByQuaternion(randomSpread, rocket.orientation);
                 
                 float downwardSpeed = 100.0f * rocket.throttle;
                 rocket.plume[i].vel = Vector3Add(rocket.velocity, Vector3Add(Vector3Scale(exhaustDir, downwardSpeed), randomSpread));
                 rocket.plume[i].thrustDir = exhaustDir; // Maintain UI stretch compatibility
+                rocket.plume[i].size = std::max(rocket.modelRadius * rocket.currentScale, 0.01f);
                 
                 particlesToSpawn--;
                 spawnedCount++;
@@ -497,12 +521,17 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
                 for (int j = 0; j < Rocket::MAX_SMOKE_PARTICLES; j++) {
                     if (!rocket.smokePlume[j].active) {
                         rocket.smokePlume[j].active = true;
+                        
+                        float smokeOffset = rocket.modelRadius * rocket.currentScale;
                         rocket.smokePlume[j].pos = rocket.plume[i].pos;
+                        rocket.smokePlume[j].pos.x += (GetRandomValue(-100, 100) / 100.0f) * smokeOffset;
+                        rocket.smokePlume[j].pos.z += (GetRandomValue(-100, 100) / 100.0f) * smokeOffset;
+                        
                         rocket.smokePlume[j].vel = rocket.plume[i].vel; // Inherit the radial outward splash
                         rocket.smokePlume[j].vel.y = (float)GetRandomValue(10, 30) / 10.0f; // Buoyant upward drift
                         rocket.smokePlume[j].maxLife = (float)GetRandomValue(40, 80) / 10.0f; // Linger for 4 to 8 seconds
                         rocket.smokePlume[j].life = rocket.smokePlume[j].maxLife;
-                        rocket.smokePlume[j].size = rocket.plume[i].size * 2.0f; // Start big
+                        rocket.smokePlume[j].size = std::max(rocket.plume[i].size * 2.0f * rocket.currentScale, 0.01f); // Start big
                         break;
                     }
                 }
@@ -518,15 +547,15 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
             rocket.plume[i].pos.z += rocket.plume[i].vel.z * deltaTime;
 
             // Temperature and Size (Mach Diamonds)
-            float lifeRatio = rocket.plume[i].life / rocket.plume[i].maxLife;
+            float lifeRatio = std::max(rocket.plume[i].life / rocket.plume[i].maxLife, 0.0f);
             rocket.plume[i].temperature = rocket.combustionTemp * lifeRatio;
             
             float age = rocket.plume[i].maxLife - rocket.plume[i].life;
-            float distFromNozzle = age * rocket.exhaustVelocity;
+            float distFromNozzle = age * rocket.exhaustVelocity / std::max(rocket.currentScale, 0.01f);
             float machOscillation = std::sin(distFromNozzle * 0.2f);
             
-            float baseSize = rocket.modelRadius * (1.0f + (1.0f - lifeRatio) * expansionFactor * 0.8f);
-            rocket.plume[i].size = baseSize * (1.0f + machOscillation * 0.4f);
+            float baseSize = rocket.modelRadius * rocket.currentScale * (1.0f + (1.0f - lifeRatio) * expansionFactor * 0.8f);
+            rocket.plume[i].size = std::max(baseSize * (1.0f + machOscillation * 0.4f), 0.01f);
 
             // Air Resistance
             float drag = 3.0f;
@@ -536,7 +565,7 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
 
             // Ground Collision
             if (rocket.plume[i].pos.y <= 0.0f) {
-                rocket.plume[i].pos.y = 0.1f; // Slightly above ground to prevent Z-fighting
+                rocket.plume[i].pos.y = std::max(0.1f * rocket.currentScale, 0.01f); // Slightly above ground to prevent Z-fighting
                 rocket.plume[i].vel.y = 0.0f;
                 // Simulate high-pressure gas deflecting outward radially
                 rocket.plume[i].vel.x *= 5.0f;
@@ -563,13 +592,14 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime) {
         // Air resistance and thermal buoyancy
         rocket.smokePlume[i].vel.x -= rocket.smokePlume[i].vel.x * 1.2f * deltaTime;
         rocket.smokePlume[i].vel.z -= rocket.smokePlume[i].vel.z * 1.2f * deltaTime;
-        rocket.smokePlume[i].vel.y += 2.0f * deltaTime; // Heat rising
+        rocket.smokePlume[i].vel.y += 2.0f * std::max(rocket.currentScale, 0.01f) * deltaTime; // Heat rising
 
         rocket.smokePlume[i].pos.x += rocket.smokePlume[i].vel.x * deltaTime;
         rocket.smokePlume[i].pos.y += rocket.smokePlume[i].vel.y * deltaTime;
         rocket.smokePlume[i].pos.z += rocket.smokePlume[i].vel.z * deltaTime;
 
-        rocket.smokePlume[i].size += 3.0f * deltaTime; // Smoke billows and expands over time
+        rocket.smokePlume[i].size += 3.0f * rocket.currentScale * deltaTime; // Smoke billows and expands over time
+        rocket.smokePlume[i].size = std::max(rocket.smokePlume[i].size, 0.01f);
     }
 
     // Crucial: Update the tracker for the next frame's interpolation

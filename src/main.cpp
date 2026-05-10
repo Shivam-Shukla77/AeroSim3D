@@ -1,6 +1,7 @@
 #include <raylib.h>
 #include <string>
 #include <cmath> // For std::sqrt
+#include <algorithm> // For std::clamp and std::min
 #include <raymath.h>
 #include <rlgl.h>
 #include <vector>
@@ -194,6 +195,16 @@ int main() {
     myRocket.modelBottomOffset = bbox.min.y;
     myRocket.crossSectionalArea = PI * myRocket.modelRadius * myRocket.modelRadius;
 
+    // Capture base unscaled dimensions for the dynamic scaling system
+    myRocket.baseBaseRadius = myRocket.modelRadius;
+    myRocket.baseHeight = myRocket.height;
+    myRocket.baseModelBottomOffset = myRocket.modelBottomOffset;
+    myRocket.baseCrossSectionalArea = myRocket.crossSectionalArea;
+    myRocket.baseDryMass = myRocket.dryMass;
+    myRocket.baseMaxFuelMass = myRocket.maxFuelMass;
+    myRocket.baseRcsPower = myRocket.rcsPower;
+    myRocket.baseMassFlowRate = myRocket.massFlowRate;
+
     // Generate Procedural Particle Texture
     Image particleImg = GenImageGradientRadial(64, 64, 0.0f, WHITE, BLANK);
     Texture2D particleTex = LoadTextureFromImage(particleImg);
@@ -239,8 +250,9 @@ int main() {
         float atmosphereFactor = Clamp(1.0f - (audioAlt / 100000.0f), 0.0f, 1.0f);
         
         // Target Calculations
-        float targetVol = myRocket.throttle * distanceFactor * atmosphereFactor;
-        float targetPitch = 0.5f + (0.7f * myRocket.throttle);
+        float baseVolume = distanceFactor * atmosphereFactor;
+        float targetVol = baseVolume * myRocket.throttle * std::min(myRocket.currentScale, 3.0f);
+        float targetPitch = std::clamp(1.0f / std::sqrt(myRocket.currentScale), 0.4f, 1.5f);
 
         // Spatial 3D Panning
         Vector3 toRocket = Vector3Normalize(Vector3Subtract(myRocket.position, camera.position));

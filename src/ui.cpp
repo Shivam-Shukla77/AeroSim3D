@@ -208,7 +208,7 @@ void DrawDashboard(Rocket& rocket, const std::string& aiAnalysisText, Camera3D c
     }
 
     // Render the rocket using DrawModelEx instead of DrawCylinder
-    DrawModelEx(rocketModel, rocket.position, rotAxis, rotAngleDeg, {1.0f, 1.0f, 1.0f}, modelTint);
+    DrawModelEx(rocketModel, rocket.position, rotAxis, rotAngleDeg, {rocket.currentScale, rocket.currentScale, rocket.currentScale}, modelTint);
 
     // Render Reentry Plasma Glow
     if (heatIntensity > 0.01f) {
@@ -405,16 +405,22 @@ void DrawDashboard(Rocket& rocket, const std::string& aiAnalysisText, Camera3D c
 
     // Sandbox Editor Panel
     float screenWidth = (float)GetScreenWidth();
-    Rectangle editorBounds = { screenWidth - 370.0f, 20.0f, 350.0f, 500.0f };
+    Rectangle editorBounds = { screenWidth - 370.0f, 20.0f, 350.0f, 540.0f };
     DrawRectangleRounded(editorBounds, 0.1f, 10, panelBg);
     DrawRectangleRoundedLines(editorBounds, 0.1f, 10, panelBorder);
     DrawTextEx(fdoFont, "SANDBOX EDITOR", { editorBounds.x + 20.0f, editorBounds.y + 15.0f }, 20, 1, textAccent);
 
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 50, 330, 30}, "Dry Mass (kg)", rocket.dryMass, 1000.0f, 500.0f, 100000.0f, "%.0f");
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 90, 330, 30}, "Fuel (kg)", rocket.fuelMass, 5000.0f, 0.0f, 500000.0f, "%.0f");
+    float prevScale = rocket.currentScale;
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 50, 330, 30}, "Vehicle Scale", rocket.currentScale, 0.1f, 0.1f, 10.0f, "%.1f");
+    if (std::abs(rocket.currentScale - prevScale) > 0.001f) {
+        RecalculateRocketScale(rocket, rocket.currentScale);
+    }
+
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 90, 330, 30}, "Dry Mass (kg)", rocket.dryMass, 1000.0f, 500.0f, 100000.0f, "%.0f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 130, 330, 30}, "Fuel (kg)", rocket.fuelMass, 5000.0f, 0.0f, 500000.0f, "%.0f");
 
     float altTweak = rocket.position.y;
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 130, 330, 30}, "Altitude (m)", altTweak, 1000.0f, 0.0f, 1000000.0f, "%.0f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 170, 330, 30}, "Altitude (m)", altTweak, 1000.0f, 0.0f, 1000000.0f, "%.0f");
     if (altTweak != rocket.position.y) { 
         rocket.position.y = altTweak; 
         rocket.velocity = {0.0f, 0.0f, 0.0f}; 
@@ -422,18 +428,18 @@ void DrawDashboard(Rocket& rocket, const std::string& aiAnalysisText, Camera3D c
     }
 
     static float earthGravityMulti = 1.0f;
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 170, 330, 30}, "Earth Gravity (x)", earthGravityMulti, 0.1f, 0.0f, 10.0f, "%.1f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 210, 330, 30}, "Earth Gravity (x)", earthGravityMulti, 0.1f, 0.0f, 10.0f, "%.1f");
     global_M_earth = 5.9722e24 * (double)earthGravityMulti;
 
     // Terrain Controls
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 210, 330, 30}, "Terrain Scale", terrainScale, 1.0f, 0.1f, 10000.0f, "%.1f");
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 250, 330, 30}, "Terrain X Offset", terrainPosition.x, 100.0f, -50000.0f, 50000.0f, "%.0f");
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 290, 330, 30}, "Terrain Y Offset", terrainPosition.y, 100.0f, -5000.0f, 5000.0f, "%.0f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 250, 330, 30}, "Terrain Scale", terrainScale, 1.0f, 0.1f, 10000.0f, "%.1f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 290, 330, 30}, "Terrain X Offset", terrainPosition.x, 100.0f, -50000.0f, 50000.0f, "%.0f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 330, 330, 30}, "Terrain Y Offset", terrainPosition.y, 100.0f, -5000.0f, 5000.0f, "%.0f");
 
     // PID Controls
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 330, 330, 30}, "PID P (Proportional)", rocket.pitchPID.kp, 0.1f, 0.0f, 20.0f, "%.1f");
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 370, 330, 30}, "PID I (Integral)", rocket.pitchPID.ki, 0.01f, 0.0f, 5.0f, "%.2f");
-    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 410, 330, 30}, "PID D (Derivative)", rocket.pitchPID.kd, 0.1f, 0.0f, 20.0f, "%.1f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 370, 330, 30}, "PID P (Proportional)", rocket.pitchPID.kp, 0.1f, 0.0f, 20.0f, "%.1f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 410, 330, 30}, "PID I (Integral)", rocket.pitchPID.ki, 0.01f, 0.0f, 5.0f, "%.2f");
+    DrawValueTweaker({editorBounds.x + 10, editorBounds.y + 450, 330, 30}, "PID D (Derivative)", rocket.pitchPID.kd, 0.1f, 0.0f, 20.0f, "%.1f");
 
     // Sync yaw and roll PID to match pitch PID
     rocket.yawPID.kp = rocket.rollPID.kp = rocket.pitchPID.kp;
@@ -444,7 +450,7 @@ void DrawDashboard(Rocket& rocket, const std::string& aiAnalysisText, Camera3D c
     static const int resList[3][2] = { {1280, 720}, {1920, 1080}, {2560, 1440} };
     static int currentRes = 0;
 
-    Rectangle resButton = {editorBounds.x + 10, editorBounds.y + 450, 330, 35};
+    Rectangle resButton = {editorBounds.x + 10, editorBounds.y + 490, 330, 35};
     const char* resText = TextFormat("RESOLUTION: %dx%d", resList[currentRes][0], resList[currentRes][1]);
     if (DrawCommandButton(resButton, resText)) {
         currentRes = (currentRes + 1) % 3;

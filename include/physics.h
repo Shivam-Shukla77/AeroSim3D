@@ -97,6 +97,17 @@ struct Rocket {
     float mach;
     float dynamicPressure;
     VoxelGrid voxelGrid;
+
+    // Scaling
+    float currentScale = 1.0f; // Defaults to 1.0f
+    float baseBaseRadius; // Unscaled base model radius
+    float baseHeight; // Unscaled base model height
+    float baseModelBottomOffset; // Unscaled base bottom offset
+    float baseDryMass; // Unscaled base dry mass
+    float baseMaxFuelMass; // Unscaled maximum fuel capacity
+    float baseRcsPower; // Unscaled base RCS thrust
+    float baseMassFlowRate; // Unscaled base mass flow rate
+    float baseCrossSectionalArea; // Unscaled base aerodynamic area
 };
 
 // Updates the rocket's physics state based on forces and user input
@@ -106,3 +117,6 @@ void UpdatePhysics(Rocket& rocket, float deltaTime, float totalTime);
 
 // Calculates the future trajectory path based on current velocity and spherical gravity
 std::vector<Vector3> CalculateTrajectory(const Rocket& state, float timeAhead, int steps);
+
+// Real-time structural scaling logic
+void RecalculateRocketScale(Rocket& rocket, float newScale);

@@ -110,3 +110,17 @@ void RecalculateGridProperties(VoxelGrid& grid) {
     grid.inertiaTensor[2][0] = grid.inertiaTensor[0][2];
     grid.inertiaTensor[2][1] = grid.inertiaTensor[1][2];
 }
+
+void ScaleVoxelGrid(VoxelGrid& grid, float scaleFactor) {
+    float massScale = scaleFactor * scaleFactor * scaleFactor;
+    
+    for (auto& block : grid.blocks) {
+        block.localPosition = Vector3Scale(block.localPosition, scaleFactor);
+        block.mass *= massScale;
+    }
+    
+    grid.minBounds = Vector3Scale(grid.minBounds, scaleFactor);
+    grid.maxBounds = Vector3Scale(grid.maxBounds, scaleFactor);
+    
+    RecalculateGridProperties(grid);
+}

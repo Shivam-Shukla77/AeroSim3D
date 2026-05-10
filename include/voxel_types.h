@@ -32,3 +32,4 @@ bool PrecomputeMeshVoxelization(const char* meshFilePath, const char* outputBina
 // Runtime Interface
 bool LoadVoxelData(const char* binaryFilePath, VoxelGrid& outGrid);
 void RecalculateGridProperties(VoxelGrid& grid);
+void ScaleVoxelGrid(VoxelGrid& grid, float scaleFactor);
